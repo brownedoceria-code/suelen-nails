@@ -34,6 +34,7 @@ const SERVICES = [
 
 const ADMIN_PASSWORD = "suelen2024";
 const SUELEN_WHATSAPP = "5521981607793";
+const APPOINTMENT_BLOCK_MINUTES = 120;
 const MONTHS_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
@@ -51,23 +52,23 @@ const getDayName = (s) => { if (!s) return ""; return DAYS_PT[new Date(s+"T00:00
 const waLink = (phone, msg) => `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
 
 const msgClienteParaSuelen = (b) =>
-  "Olá, Suelen! 😊 Gostaria de confirmar meu agendamento:\n\n" +
-  "💅 *Serviço:* " + b.service + "\n" +
-  "📅 *Data:* " + getDayName(b.date) + ", " + formatDateBR(b.date) + "\n" +
-  "🕐 *Horário:* " + formatTime(b.startMinutes) + " – " + formatTime(b.startMinutes + b.duration) + "\n" +
-  "💰 *Valor:* R$ " + b.price + ",00\n\n" +
+  "Ola, Suelen! Gostaria de confirmar meu agendamento:\n\n" +
+  "*Servico:* " + b.service + "\n" +
+  "*Data:* " + getDayName(b.date) + ", " + formatDateBR(b.date) + "\n" +
+  "*Horario:* " + formatTime(b.startMinutes) + " - " + formatTime(b.startMinutes + b.duration) + "\n" +
+  "*Valor:* R$ " + b.price + ",00\n\n" +
   "*Nome:* " + b.name + "\n*Telefone:* " + b.phone;
 
 const getLinkSuelenParaCliente = (b) => {
   const phone = b.phone.replace(/\D/g, "");
   const fullPhone = phone.startsWith("55") ? phone : "55" + phone;
   const msg =
-    "Olá, " + b.name.split(" ")[0] + "! 😊 Seu agendamento está confirmado:\n\n" +
-    "💅 *Serviço:* " + b.service + "\n" +
-    "📅 *Data:* " + getDayName(b.date) + ", " + formatDateBR(b.date) + "\n" +
-    "🕐 *Horário:* " + formatTime(b.startMinutes) + " – " + formatTime(b.startMinutes + b.duration) + "\n" +
-    "💰 *Valor:* R$ " + b.price + ",00\n\n" +
-    "Te espero! 💕\n_Suelen Nail's Designer_";
+    "Ola, " + b.name.split(" ")[0] + "! Seu agendamento esta confirmado:\n\n" +
+    "*Servico:* " + b.service + "\n" +
+    "*Data:* " + getDayName(b.date) + ", " + formatDateBR(b.date) + "\n" +
+    "*Horario:* " + formatTime(b.startMinutes) + " - " + formatTime(b.startMinutes + b.duration) + "\n" +
+    "*Valor:* R$ " + b.price + ",00\n\n" +
+    "Te espero!\n_Suelen Nail's Designer_";
   return waLink(fullPhone, msg);
 };
 
@@ -197,16 +198,16 @@ export default function App() {
     await deleteDoc(doc(db, "bookings", id));
   };
 
-  const getSlots = (dateStr, dur) => {
+  const getSlots = (dateStr) => {
     const dow = new Date(dateStr + "T00:00:00").getDay();
     const h = getBusinessHours(dow);
     if (!h) return [];
     const slots = [];
-    for (let t = h.start; t + dur <= h.end; t += 30) {
+    for (let t = h.start; t + APPOINTMENT_BLOCK_MINUTES <= h.end; t += 30) {
       const ok = !bookings.some(b => {
         if (b.date !== dateStr) return false;
         const be = b.startMinutes + b.duration;
-        return t < be && t + dur > b.startMinutes;
+        return t < be && t + APPOINTMENT_BLOCK_MINUTES > b.startMinutes;
       });
       if (ok) slots.push(t);
     }
@@ -226,7 +227,7 @@ export default function App() {
       const dateStr = `${y}-${(mo+1).toString().padStart(2,"0")}-${d.toString().padStart(2,"0")}`;
       const closed = dow === 0 || dow === 1;
       const past = dt < today;
-      const hasSlots = !closed && !past && !!sel.service && getSlots(dateStr, sel.service.duration).length > 0;
+      const hasSlots = !closed && !past && getSlots(dateStr).length > 0;
       days.push({ d, dateStr, closed, past, hasSlots });
     }
     return days;
@@ -237,7 +238,7 @@ export default function App() {
     const b = {
       service: sel.service.name,
       price: sel.service.price,
-      duration: sel.service.duration,
+      duration: APPOINTMENT_BLOCK_MINUTES,
       date: sel.date,
       startMinutes: sel.time,
       name: form.name,
@@ -351,7 +352,7 @@ export default function App() {
               <div className="divider"/>
               {SERVICES.map(s => (
                 <div key={s.id} className={`service-card${sel.service?.id === s.id ? " sel" : ""}`} onClick={() => setSel(p => ({ ...p, service: s }))}>
-                  <div><div className="svc-name">{s.name}</div><div className="svc-meta">⏱ {formatDuration(s.duration)}</div></div>
+                  <div className="svc-name">{s.name}</div>
                   <div className="svc-price">R$ {s.price}</div>
                 </div>
               ))}
@@ -397,7 +398,7 @@ export default function App() {
               <div className="divider"/>
               <p style={{fontSize:"13px",color:"#8B6E5A",marginBottom:"16px"}}>{getDayName(sel.date)}, {formatDateBR(sel.date)}</p>
               {(() => {
-                const slots = getSlots(sel.date, sel.service.duration);
+                const slots = getSlots(sel.date);
                 return slots.length === 0 ? (
                   <div className="empty-st"><p>Sem horários disponíveis nesta data.</p><br/><button className="btn-ghost" onClick={() => setStep(2)}>← Outra data</button></div>
                 ) : (
@@ -418,7 +419,7 @@ export default function App() {
               <div className="summary">
                 <div className="sum-row"><span className="sum-lbl">Serviço</span><span className="sum-val">{sel.service.name}</span></div>
                 <div className="sum-row"><span className="sum-lbl">Data</span><span className="sum-val">{getDayName(sel.date)}, {formatDateBR(sel.date)}</span></div>
-                <div className="sum-row"><span className="sum-lbl">Horário</span><span className="sum-val">{formatTime(sel.time)} – {formatTime(sel.time + sel.service.duration)}</span></div>
+                <div className="sum-row"><span className="sum-lbl">Horário</span><span className="sum-val">{formatTime(sel.time)} – {formatTime(sel.time + APPOINTMENT_BLOCK_MINUTES)}</span></div>
                 <div className="sum-row"><span className="sum-lbl">Valor</span><span className="sum-price">R$ {sel.service.price},00</span></div>
               </div>
               <div className="form-group">
@@ -443,7 +444,7 @@ export default function App() {
               <div className="summary" style={{textAlign:"left"}}>
                 <div className="sum-row"><span className="sum-lbl">Serviço</span><span className="sum-val">{sel.service.name}</span></div>
                 <div className="sum-row"><span className="sum-lbl">Data</span><span className="sum-val">{getDayName(sel.date)}, {formatDateBR(sel.date)}</span></div>
-                <div className="sum-row"><span className="sum-lbl">Horário</span><span className="sum-val">{formatTime(sel.time)} – {formatTime(sel.time + sel.service.duration)}</span></div>
+                <div className="sum-row"><span className="sum-lbl">Horário</span><span className="sum-val">{formatTime(sel.time)} – {formatTime(sel.time + APPOINTMENT_BLOCK_MINUTES)}</span></div>
                 <div className="sum-row"><span className="sum-lbl">Valor</span><span className="sum-price">R$ {sel.service.price},00</span></div>
               </div>
               <div className="confirm-actions">
@@ -473,19 +474,6 @@ export default function App() {
           <h1 className="hero-title">Suelen<br/><em>Nail's Designer</em></h1>
           <p className="hero-sub">Ter–Sex 9h–20h · Sáb 9h–16h</p>
           <button className="btn" onClick={() => { setView("booking"); reset(); }}>Agendar horário</button>
-        </div>
-      </div>
-      <div className="section">
-        <div className="sec-title">Serviços</div>
-        <div className="divider"/>
-        {SERVICES.map(s => (
-          <div key={s.id} className="service-card no-cursor">
-            <div><div className="svc-name">{s.name}</div><div className="svc-meta">⏱ {formatDuration(s.duration)}</div></div>
-            <div className="svc-price">R$ {s.price}</div>
-          </div>
-        ))}
-        <div style={{marginTop:"24px",textAlign:"center"}}>
-          <button className="btn" onClick={() => { setView("booking"); reset(); }}>Agendar agora</button>
         </div>
       </div>
     </div>
