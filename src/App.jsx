@@ -18,18 +18,15 @@ const db = getFirestore(firebaseApp);
 // =====================================
 
 const SERVICES = [
-  { id: 1, name: "Banho de Gel", duration: 90, price: 100 },
-  { id: 2, name: "Molde F1", duration: 120, price: 160 },
-  { id: 3, name: "Fibra", duration: 120, price: 160 },
-  { id: 4, name: "Pé", duration: 40, price: 40 },
-  { id: 5, name: "Mão e Pé Simples", duration: 90, price: 55 },
-  { id: 6, name: "Pé em Gel", duration: 90, price: 65 },
-  { id: 7, name: "Acrigel", duration: 120, price: 150 },
-  { id: 8, name: "Blindagem", duration: 60, price: 75 },
-  { id: 9, name: "Esmaltação em Gel", duration: 40, price: 65 },
-  { id: 10, name: "Manutenção Molde F1", duration: 120, price: 130 },
-  { id: 11, name: "Manutenção Acrigel", duration: 120, price: 115 },
-  { id: 12, name: "Manutenção Fibra", duration: 120, price: 130 },
+  { id: 1, name: "Molde F1", price: 160 },
+  { id: 2, name: "Alongamento", price: 160 },
+  { id: 3, name: "Banho de Gel", price: 100 },
+  { id: 4, name: "Esmaltação em Gel", price: 90 },
+  { id: 5, name: "Pé Simples", price: 45 },
+  { id: 6, name: "Mão e Pé Simples", price: 65 },
+  { id: 7, name: "Manutenção", price: 130 },
+  { id: 8, name: "Manutenção Outra Profissional Alongamento", price: 160 },
+  { id: 9, name: "Manutenção Outra Profissional Banho de Gel", price: 130 },
 ];
 
 const ADMIN_PASSWORD = "suelen2024";
@@ -47,7 +44,6 @@ const getBusinessHours = (dow) => {
 };
 
 const formatTime = (m) => `${Math.floor(m/60).toString().padStart(2,"0")}:${(m%60).toString().padStart(2,"0")}`;
-const formatDuration = (m) => m < 60 ? `${m} min` : `${Math.floor(m/60)}h${m%60 ? (m%60).toString().padStart(2,"0") : ""}`;
 const formatDateBR = (s) => { if (!s) return ""; const [y,mo,d] = s.split("-"); return `${d}/${mo}/${y}`; };
 const getDayName = (s) => { if (!s) return ""; return DAYS_PT[new Date(s+"T00:00:00").getDay()]; };
 
