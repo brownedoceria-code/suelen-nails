@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot } from "firebase/firestore";
+import { getFirestore, collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot } from "firebase/firestore";
 
 // ===== CONFIGURAÇÃO DO FIREBASE =====
 const firebaseConfig = {
@@ -35,6 +35,8 @@ const SERVICES = [
 const ADMIN_PASSWORD = "suelen2024";
 const SUELEN_WHATSAPP = "5521981607793";
 const APPOINTMENT_BLOCK_MINUTES = 120;
+const CORTE_STUDIO = 0.40; // cliente vinda direto do salão: Suelen perde 40%
+const CORTE_DIRETO = 0.30; // cliente vinda direto pela Suelen: Suelen perde 30%
 const MONTHS_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
@@ -156,6 +158,10 @@ const CSS = `
   .empty-st{text-align:center;padding:48px 24px;color:#8B6E5A;}
   .hint{font-size:11px;color:#A08070;text-align:center;margin-bottom:14px;}
   .loading-st{text-align:center;padding:40px 24px;color:#8B6E5A;font-size:13px;}
+  .studio-toggle{background:#FDF5EF;border:1px solid rgba(201,149,106,0.35);color:#8B6E5A;padding:6px 12px;font-size:11px;letter-spacing:0.3px;border-radius:4px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;}
+  .studio-toggle:hover{border-color:#C9956A;}
+  .studio-toggle.on{background:#2C2017;color:#F0D9C8;border-color:#2C2017;}
+  .net-row{background:rgba(201,149,106,0.08);}
 `;
 
 export default function App() {
@@ -171,6 +177,23 @@ export default function App() {
   const [month, setMonth] = useState(new Date());
   const [lastBooking, setLastBooking] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [adminTab, setAdminTab] = useState("agendamentos");
+  const [filterStart, setFilterStart] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,"0")}-01`;
+  });
+  const [filterEnd, setFilterEnd] = useState(() => {
+    const d = new Date();
+    const last = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+    return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,"0")}-${last.toString().padStart(2,"0")}`;
+  });
+
+  const setFilterToCurrentMonth = () => {
+    const d = new Date();
+    const last = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+    setFilterStart(`${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,"0")}-01`);
+    setFilterEnd(`${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,"0")}-${last.toString().padStart(2,"0")}`);
+  };
 
   // Escuta o Firestore em tempo real: qualquer agendamento novo (de qualquer
   // pessoa, em qualquer dispositivo) aparece automaticamente aqui.
@@ -196,6 +219,10 @@ export default function App() {
 
   const removeBooking = async (id) => {
     await deleteDoc(doc(db, "bookings", id));
+  };
+
+  const toggleStudio = async (b) => {
+    await updateDoc(doc(db, "bookings", b.id), { isStudio: !b.isStudio });
   };
 
   const getSlots = (dateStr) => {
@@ -242,7 +269,8 @@ export default function App() {
       date: sel.date,
       startMinutes: sel.time,
       name: form.name,
-      phone: form.phone
+      phone: form.phone,
+      isStudio: false
     };
     try {
       await addBooking(b);
@@ -289,8 +317,72 @@ export default function App() {
             </div>
           ) : (
             <div>
+              <div className="breadcrumb" style={{marginBottom:"22px"}}>
+                <span className={`bc${adminTab === "agendamentos" ? " active" : ""}`} style={{cursor:"pointer"}} onClick={() => setAdminTab("agendamentos")}>Agendamentos</span>
+                <span className={`bc${adminTab === "faturamento" ? " active" : ""}`} style={{cursor:"pointer"}} onClick={() => setAdminTab("faturamento")}>Faturamento</span>
+              </div>
+
               {loadingBookings ? (
                 <div className="loading-st">Carregando agendamentos...</div>
+              ) : adminTab === "faturamento" ? (
+                (() => {
+                  const filtered = bookings.filter(b => b.date >= filterStart && b.date <= filterEnd);
+                  const total = filtered.reduce((sum, b) => sum + (b.price || 0), 0);
+                  const studioBookings = filtered.filter(b => b.isStudio);
+                  const diretoBookings = filtered.filter(b => !b.isStudio);
+                  const totalStudio = studioBookings.reduce((sum, b) => sum + (b.price || 0), 0);
+                  const totalDireto = diretoBookings.reduce((sum, b) => sum + (b.price || 0), 0);
+                  const liquido = totalStudio * (1 - CORTE_STUDIO) + totalDireto * (1 - CORTE_DIRETO);
+                  const porServico = {};
+                  filtered.forEach(b => {
+                    if (!porServico[b.service]) porServico[b.service] = { count: 0, total: 0 };
+                    porServico[b.service].count += 1;
+                    porServico[b.service].total += b.price || 0;
+                  });
+                  const servicosOrdenados = Object.entries(porServico).sort((a, b) => b[1].total - a[1].total);
+
+                  return (
+                    <div>
+                      <div className="form-group">
+                        <label className="form-label">De</label>
+                        <input className="form-input" type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Até</label>
+                        <input className="form-input" type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)} />
+                      </div>
+                      <button className="btn-ghost" style={{marginBottom:"20px"}} onClick={setFilterToCurrentMonth}>Este mês</button>
+
+                      <div className="summary">
+                        <div className="sum-row"><span className="sum-lbl">Agendamentos no período</span><span className="sum-val">{filtered.length}</span></div>
+                        <div className="sum-row"><span className="sum-lbl">Receita bruta</span><span className="sum-val">R$ {total.toFixed(2).replace(".", ",")}</span></div>
+                        <div className="sum-row"><span className="sum-lbl">Clientes do Studio ({studioBookings.length})</span><span className="sum-val">R$ {totalStudio.toFixed(2).replace(".", ",")}</span></div>
+                        <div className="sum-row"><span className="sum-lbl">Clientes diretos ({diretoBookings.length})</span><span className="sum-val">R$ {totalDireto.toFixed(2).replace(".", ",")}</span></div>
+                        <div className="sum-row net-row"><span className="sum-lbl">Receita líquida (sua parte)</span><span className="sum-price">R$ {liquido.toFixed(2).replace(".", ",")}</span></div>
+                      </div>
+                      <p className="hint" style={{textAlign:"left",marginBottom:"20px"}}>
+                        Studio: -40% por agendamento · Direto: -30% por agendamento
+                      </p>
+
+                      {servicosOrdenados.length === 0 ? (
+                        <div className="empty-st"><p>Nenhum agendamento nesse período.</p></div>
+                      ) : (
+                        <div>
+                          <div className="form-label" style={{marginBottom:"10px"}}>Por serviço (bruto)</div>
+                          {servicosOrdenados.map(([nome, dados]) => (
+                            <div key={nome} className="admin-card" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                              <div>
+                                <div className="admin-name" style={{fontSize:"16px"}}>{nome}</div>
+                                <div className="admin-phone">{dados.count} agendamento(s)</div>
+                              </div>
+                              <div className="svc-price">R$ {dados.total.toFixed(2).replace(".", ",")}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
               ) : (
                 <>
                   <p style={{fontSize:"13px",color:"#8B6E5A",marginBottom:"18px"}}>{sorted.length} agendamento(s)</p>
@@ -315,6 +407,14 @@ export default function App() {
                         <span>📅 {getDayName(b.date)}, {formatDateBR(b.date)}</span>
                         <span>🕐 {formatTime(b.startMinutes)}–{formatTime(b.startMinutes + b.duration)}</span>
                         <span style={{color:"#C9956A",fontWeight:500}}>R$ {b.price},00</span>
+                      </div>
+                      <div style={{marginTop:"10px",display:"flex",alignItems:"center",gap:"8px"}}>
+                        <button
+                          className={`studio-toggle${b.isStudio ? " on" : ""}`}
+                          onClick={() => toggleStudio(b)}
+                        >
+                          {b.isStudio ? "✓ Cliente do Studio (-40%)" : "Cliente direto (-30%)"}
+                        </button>
                       </div>
                     </div>
                   ))}
