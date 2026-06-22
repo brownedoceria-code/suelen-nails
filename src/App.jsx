@@ -39,8 +39,7 @@ const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
 const getBusinessHours = (dow) => {
   if (dow === 0 || dow === 1) return null;
-  if (dow === 6) return { start: 9 * 60, end: 16 * 60 };
-  return { start: 9 * 60, end: 20 * 60 };
+  return { start: 8 * 60, end: 20 * 60 };
 };
 
 const formatTime = (m) => `${Math.floor(m/60).toString().padStart(2,"0")}:${(m%60).toString().padStart(2,"0")}`;
@@ -568,7 +567,7 @@ export default function App() {
         <div className="hero-inner">
           <p className="eyebrow">Nail Designer · Rio de Janeiro</p>
           <h1 className="hero-title">Suelen<br/><em>Nail's Designer</em></h1>
-          <p className="hero-sub">Ter–Sex 9h–20h · Sáb 9h–16h</p>
+          <p className="hero-sub">Ter–Sex 10h–20h · Sáb 10h–20h</p>
           <button className="btn" onClick={() => { setView("booking"); reset(); }}>Agendar horário</button>
         </div>
       </div>
